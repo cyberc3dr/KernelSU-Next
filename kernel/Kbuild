@@ -9,6 +9,7 @@ endif
 kernelsu-objs += throne_tracker.o
 kernelsu-objs += pkg_observer.o
 kernelsu-objs += setuid_hook.o
+kernelsu-objs += kernel_compat.o
 kernelsu-objs += kernel_umount.o
 kernelsu-objs += supercalls.o
 kernelsu-objs += su_mount_ns.o
@@ -82,6 +83,55 @@ endif
 
 $(info -- KernelSU-Next Manager signatures: $(KSU_NEXT_MANAGER_LIST))
 ccflags-y += -DKSU_NEXT_MANAGER_LIST=\"$(KSU_NEXT_MANAGER_LIST)\"
+
+# SELinux drivers check
+ifeq ($(shell grep -q "current_sid(void)" $(srctree)/security/selinux/include/objsec.h; echo $$?),0)
+ccflags-y += -DKSU_COMPAT_HAS_CURRENT_SID
+endif
+ifeq ($(shell grep -q "struct selinux_state " $(srctree)/security/selinux/include/security.h; echo $$?),0)
+ccflags-y += -DKSU_COMPAT_USE_SELINUX_STATE
+endif
+
+# Handle optional backports
+ifeq ($(shell grep -q "strncpy_from_user_nofault" $(srctree)/include/linux/uaccess.h; echo $$?),0)
+ccflags-y += -DKSU_OPTIONAL_STRNCPY
+endif
+
+ifeq ($(shell grep -q "ssize_t kernel_read" $(srctree)/fs/read_write.c; echo $$?),0)
+ccflags-y += -DKSU_OPTIONAL_KERNEL_READ
+endif
+
+ifeq ($(shell grep "ssize_t kernel_write" $(srctree)/fs/read_write.c | grep -q "const void" ; echo $$?),0)
+ccflags-y += -DKSU_OPTIONAL_KERNEL_WRITE
+endif
+
+ifeq ($(shell grep -q "int\s\+path_mount" $(srctree)/fs/namespace.c; echo $$?),0)
+ccflags-y += -DKSU_HAS_PATH_MOUNT
+endif
+
+ifeq ($(shell grep -q "int\s\+path_umount" $(srctree)/fs/namespace.c; echo $$?),0)
+ccflags-y += -DKSU_HAS_PATH_UMOUNT
+endif
+
+# some old kernel backport this, let's check if put_seccomp_filter still exist
+ifneq ($(shell grep -wq "put_seccomp_filter" $(srctree)/kernel/seccomp.c $(srctree)/include/linux/seccomp.h; echo $$?),0)
+ifeq ($(shell grep -wq "seccomp_filter_release" $(srctree)/kernel/seccomp.c $(srctree)/include/linux/seccomp.h; echo $$?),0)
+ccflags-y += -DKSU_OPTIONAL_SECCOMP_FILTER_RELEASE
+endif
+endif
+
+ifeq ($(shell grep -q "security_inode_init_security_anon" $(srctree)/include/linux/security.h; echo $$?),0)
+ccflags-y += -DKSU_COMPAT_HAS_INIT_SEC_ANON
+endif
+
+# Checks Samsung
+ifeq ($(shell grep -q "CONFIG_KDP_CRED" $(srctree)/kernel/cred.c; echo $$?),0)
+ccflags-y += -DSAMSUNG_UH_DRIVER_EXIST
+endif
+
+ifeq ($(shell grep -q "SEC_SELINUX_PORTING_COMMON" $(srctree)/security/selinux/avc.c; echo $$?),0)
+ccflags-y += -DSAMSUNG_SELINUX_PORTING
+endif
 
 ccflags-y += -Wno-strict-prototypes -Wno-int-conversion -Wno-gcc-compat -Wno-missing-prototypes
 ccflags-y += -Wno-declaration-after-statement -Wno-unused-function -Wno-unused-variable

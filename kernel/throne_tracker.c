@@ -21,6 +21,7 @@
 #include "klog.h" // IWYU pragma: keep
 #include "manager.h"
 #include "throne_tracker.h"
+#include "kernel_compat.h"
 
 uid_t ksu_manager_appid = KSU_INVALID_APPID;
 
@@ -137,7 +138,11 @@ FILLDIR_RETURN_TYPE my_actor(struct dir_context *ctx, const char *name,
 	} else {
 		if ((namelen == 8) && (strncmp(name, "base.apk", namelen) == 0)) {
 			struct apk_path_hash *pos, *n;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+			unsigned int hash = full_name_hash(dirpath, strlen(dirpath));
+#else
 			unsigned int hash = full_name_hash(NULL, dirpath, strlen(dirpath));
+#endif
 			list_for_each_entry (pos, &apk_path_hash_list, list) {
 				if (hash == pos->hash) {
 					pos->exists = true;
@@ -202,7 +207,7 @@ void search_manager(const char *path, int depth, struct list_head *uid_data)
 			struct file *file;
 
 			if (!stop) {
-				file = filp_open(pos->dirpath, O_RDONLY | O_NOFOLLOW | O_DIRECTORY, 0);
+				file = ksu_filp_open_compat(pos->dirpath, O_RDONLY | O_NOFOLLOW | O_DIRECTORY, 0);
 				if (IS_ERR(file)) {
 					pr_err("Failed to open directory: %s, err: %ld\n",
 						pos->dirpath, PTR_ERR(file));
@@ -274,7 +279,7 @@ static void track_throne_function(bool prune_only)
 
 	// Retry (open; avoids races with pkg. mgr. packages.list update(s); hint: is_lock_held)
 	for (t = 0;
-		t < 10 && IS_ERR(fp = filp_open(SYSTEM_PACKAGES_LIST_PATH, O_RDONLY, 0));
+		t < 10 && IS_ERR(fp = ksu_filp_open_compat(SYSTEM_PACKAGES_LIST_PATH, O_RDONLY, 0));
 		t++) {
 			err = PTR_ERR(fp);
 			if (!is_lock_held(SYSTEM_PACKAGES_LIST_PATH) &&
@@ -296,13 +301,13 @@ static void track_throne_function(bool prune_only)
 	loff_t line_start = 0;
 	char buf[KSU_MAX_PACKAGE_NAME];
 	for (;;) {
-		ssize_t count = kernel_read(fp, &chr, sizeof(chr), &pos);
+		ssize_t count = ksu_kernel_read_compat(fp, &chr, sizeof(chr), &pos);
 		if (count != sizeof(chr))
 			break;
 		if (chr != '\n')
 			continue;
 
-		count = kernel_read(fp, buf, sizeof(buf), &line_start);
+		count = ksu_kernel_read_compat(fp, buf, sizeof(buf), &line_start);
 
 		struct uid_data *data = kzalloc(sizeof(*data), gfp);
 		if (!data) {

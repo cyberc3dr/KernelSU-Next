@@ -17,6 +17,7 @@
 #include "feature.h"
 #include "ksud.h"
 #include "ksu.h"
+#include "kernel_compat.h"
 
 static bool ksu_kernel_umount_enabled = true;
 

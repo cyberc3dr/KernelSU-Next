@@ -27,6 +27,7 @@
 #include "util.h"
 #include "selinux/selinux.h"
 #include "throne_tracker.h"
+#include "kernel_compat.h"
 
 bool ksu_module_mounted __read_mostly = false;
 bool ksu_boot_completed __read_mostly = false;
@@ -580,7 +581,7 @@ static int sys_fstat_handler_post(struct kretprobe_instance *p,
 	if (statbuf) {
 		void __user *st_size_ptr = statbuf + offsetof(struct stat, st_size);
 		long size, new_size;
-		if (!copy_from_user_nofault(&size, st_size_ptr, sizeof(long))) {
+		if (!ksu_copy_from_user_nofault(&size, st_size_ptr, sizeof(long))) {
 			new_size = size + ksu_rc_len;
 			pr_info("adding ksu_rc_len: %ld -> %ld", size, new_size);
 			if (!copy_to_user_nofault(st_size_ptr, &new_size, sizeof(long))) {

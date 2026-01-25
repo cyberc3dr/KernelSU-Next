@@ -31,6 +31,7 @@
 #ifndef CONFIG_KSU_SUSFS
 #include "syscall_hook_manager.h"
 #endif // #ifndef CONFIG_KSU_SUSFS
+#include "kernel_compat.h"
 
 #include "tiny_sulog.c"
 
